@@ -1,7 +1,11 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from datetime import date
+from datetime import date, datetime
+from io import BytesIO
+
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
 
 from database import (
     initialize_database,
@@ -9,6 +13,7 @@ from database import (
     get_medicines,
     add_medicine
 )
+
 
 # ---------- PAGE SETTINGS ----------
 
@@ -18,6 +23,7 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
 
 # ---------- PREMIUM STYLING ----------
 
@@ -130,6 +136,100 @@ hr {
 """, unsafe_allow_html=True)
 
 
+# ---------- PDF GENERATION FUNCTION ----------
+
+def create_invoice_pdf(data):
+
+    buffer = BytesIO()
+    pdf = canvas.Canvas(buffer, pagesize=A4)
+
+    width, height = A4
+
+    # Remove unsupported characters for standard PDF font
+    def safe_text(value):
+        return str(value).encode(
+            "latin-1", "replace"
+        ).decode("latin-1")
+
+    pdf.setTitle("MediCare Plus Invoice")
+
+    pdf.setFont("Helvetica-Bold", 23)
+    pdf.drawCentredString(
+        width / 2,
+        height - 65,
+        "MediCare Plus"
+    )
+
+    pdf.setFont("Helvetica-Bold", 15)
+    pdf.drawCentredString(
+        width / 2,
+        height - 95,
+        "PHARMACY INVOICE"
+    )
+
+    pdf.line(50, height - 115, width - 50, height - 115)
+
+    pdf.setFont("Helvetica", 11)
+
+    y = height - 150
+
+    details = [
+        ("Invoice Number", data["invoice_no"]),
+        ("Date", data["date"]),
+        ("Customer", data["customer"]),
+        ("Medicine", data["medicine"]),
+        ("Quantity", data["quantity"]),
+        ("Unit Price", f"Rs. {data['unit_price']:.2f}"),
+        ("Subtotal", f"Rs. {data['subtotal']:.2f}"),
+        (
+            f"GST ({data['gst_rate']}%)",
+            f"Rs. {data['gst_amount']:.2f}"
+        )
+    ]
+
+    for label, value in details:
+
+        pdf.drawString(60, y, safe_text(label))
+
+        pdf.drawRightString(
+            width - 60,
+            y,
+            safe_text(value)
+        )
+
+        y -= 30
+
+    pdf.line(50, y, width - 50, y)
+
+    y -= 35
+
+    pdf.setFont("Helvetica-Bold", 16)
+
+    pdf.drawString(60, y, "TOTAL")
+
+    pdf.drawRightString(
+        width - 60,
+        y,
+        f"Rs. {data['total']:.2f}"
+    )
+
+    y -= 70
+
+    pdf.setFont("Helvetica", 11)
+
+    pdf.drawCentredString(
+        width / 2,
+        y,
+        "Thank you for your purchase!"
+    )
+
+    pdf.save()
+
+    buffer.seek(0)
+
+    return buffer.getvalue()
+
+
 # ---------- DATABASE INITIALIZATION ----------
 
 initialize_database()
@@ -169,8 +269,14 @@ st.sidebar.caption("Version 1.0 | Academic Project")
 medicines = get_medicines()
 
 conn = get_connection()
-sales = pd.read_sql_query("SELECT * FROM sales", conn)
-conn.close()
+
+try:
+    sales = pd.read_sql_query(
+        "SELECT * FROM sales",
+        conn
+    )
+finally:
+    conn.close()
 
 
 # ---------- HEADER ----------
@@ -190,8 +296,11 @@ if page == "🏠 Dashboard":
     st.subheader("📈 Business Overview")
 
     total_products = len(medicines)
+
     total_stock = sum(m[4] for m in medicines)
+
     revenue = sales["total"].sum() if not sales.empty else 0
+
     transactions = len(sales)
 
     c1, c2, c3, c4 = st.columns(4)
@@ -206,13 +315,16 @@ if page == "🏠 Dashboard":
     left, right = st.columns([1.4, 1])
 
     with left:
+
         st.subheader("📊 Sales Performance")
 
         if not sales.empty:
 
             chart_data = sales.copy()
+
             chart_data["sale_date"] = pd.to_datetime(
-                chart_data["sale_date"]
+                chart_data["sale_date"],
+                errors="coerce"
             )
 
             daily = chart_data.groupby(
@@ -234,38 +346,68 @@ if page == "🏠 Dashboard":
                 font_color="white"
             )
 
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(
+                fig,
+                use_container_width=True
+            )
 
         else:
-            st.info("Sales chart will appear after your first bill.")
+
+            st.info(
+                "Sales chart will appear after your first bill."
+            )
 
     with right:
+
         st.subheader("🚨 Stock Alerts")
 
-        low_stock = [m for m in medicines if m[4] <= 10]
+        low_stock = [
+            m for m in medicines if m[4] <= 10
+        ]
 
         if low_stock:
+
             for m in low_stock:
-                st.warning(f"{m[1]} — Only {m[4]} left")
+                st.warning(
+                    f"{m[1]} — Only {m[4]} left"
+                )
+
         else:
+
             st.success("No low-stock medicines.")
 
         st.subheader("⚡ Quick Actions")
-        st.write("Use the sidebar to add medicines or generate bills.")
+
+        st.write(
+            "Use the sidebar to add medicines or generate bills."
+        )
 
     st.divider()
 
     st.subheader("🕒 Recently Added Medicines")
 
     if medicines:
-        df = pd.DataFrame(medicines, columns=[
-            "ID", "Medicine", "Category", "Price",
-            "Stock", "Expiry", "Supplier"
-        ])
 
-        st.dataframe(df.tail(5), use_container_width=True)
+        df = pd.DataFrame(
+            medicines,
+            columns=[
+                "ID",
+                "Medicine",
+                "Category",
+                "Price",
+                "Stock",
+                "Expiry",
+                "Supplier"
+            ]
+        )
+
+        st.dataframe(
+            df.tail(5),
+            use_container_width=True
+        )
 
     else:
+
         st.info("Start by adding your first medicine.")
 
 
@@ -275,23 +417,43 @@ elif page == "💊 Medicine Inventory":
 
     st.subheader("💊 Medicine Inventory")
 
-    search = st.text_input("🔍 Search medicine by name")
+    search = st.text_input(
+        "🔍 Search medicine by name"
+    )
 
     if medicines:
 
-        df = pd.DataFrame(medicines, columns=[
-            "ID", "Medicine", "Category", "Price",
-            "Stock", "Expiry", "Supplier"
-        ])
+        df = pd.DataFrame(
+            medicines,
+            columns=[
+                "ID",
+                "Medicine",
+                "Category",
+                "Price",
+                "Stock",
+                "Expiry",
+                "Supplier"
+            ]
+        )
 
         if search:
-            df = df[df["Medicine"].str.contains(
-                search, case=False, na=False
-            )]
 
-        st.dataframe(df, use_container_width=True)
+            df = df[
+                df["Medicine"].str.contains(
+                    search,
+                    case=False,
+                    na=False
+                )
+            ]
 
-        st.caption(f"Showing {len(df)} medicine records.")
+        st.dataframe(
+            df,
+            use_container_width=True
+        )
+
+        st.caption(
+            f"Showing {len(df)} medicine records."
+        )
 
         st.divider()
 
@@ -300,7 +462,8 @@ elif page == "💊 Medicine Inventory":
         selected_medicine = st.selectbox(
             "Select medicine to remove",
             options=medicines,
-            format_func=lambda m: f"{m[1]} (ID: {m[0]})",
+            format_func=lambda m:
+                f"{m[1]} (ID: {m[0]})",
             key="delete_medicine_select"
         )
 
@@ -313,7 +476,9 @@ elif page == "💊 Medicine Inventory":
 
             if not confirm_delete:
 
-                st.warning("Please confirm before removing.")
+                st.warning(
+                    "Please confirm before removing."
+                )
 
             else:
 
@@ -323,7 +488,11 @@ elif page == "💊 Medicine Inventory":
                 try:
 
                     cursor.execute(
-                        "SELECT COUNT(*) FROM sales WHERE medicine_id = ?",
+                        """
+                        SELECT COUNT(*)
+                        FROM sales
+                        WHERE medicine_id = ?
+                        """,
                         (selected_medicine[0],)
                     )
 
@@ -340,30 +509,43 @@ elif page == "💊 Medicine Inventory":
                     else:
 
                         cursor.execute(
-                            "DELETE FROM medicines WHERE id = ?",
+                            """
+                            DELETE FROM medicines
+                            WHERE id = ?
+                            """,
                             (selected_medicine[0],)
                         )
 
                         conn.commit()
 
                         if cursor.rowcount > 0:
+
                             st.success(
                                 f"{selected_medicine[1]} removed successfully!"
                             )
-                        else:
-                            st.warning("Medicine was not found.")
 
-                        st.rerun()
+                            st.rerun()
+
+                        else:
+
+                            st.warning(
+                                "Medicine was not found."
+                            )
 
                 except Exception as e:
 
                     conn.rollback()
-                    st.error(f"Unable to remove medicine: {e}")
+
+                    st.error(
+                        f"Unable to remove medicine: {e}"
+                    )
 
                 finally:
+
                     conn.close()
 
     else:
+
         st.info("No medicines available.")
 
 
@@ -372,7 +554,10 @@ elif page == "💊 Medicine Inventory":
 elif page == "➕ Add Medicine":
 
     st.subheader("➕ Add New Medicine")
-    st.write("Enter medicine details to update your inventory.")
+
+    st.write(
+        "Enter medicine details to update your inventory."
+    )
 
     with st.form("add_medicine_form"):
 
@@ -384,7 +569,13 @@ elif page == "➕ Add Medicine":
 
             category = st.selectbox(
                 "Category",
-                ["Tablet", "Syrup", "Capsule", "Injection", "Other"]
+                [
+                    "Tablet",
+                    "Syrup",
+                    "Capsule",
+                    "Injection",
+                    "Other"
+                ]
             )
 
             price = st.number_input(
@@ -401,8 +592,13 @@ elif page == "➕ Add Medicine":
                 step=1
             )
 
-            expiry = st.date_input("Expiry Date")
-            supplier = st.text_input("Supplier Name")
+            expiry = st.date_input(
+                "Expiry Date"
+            )
+
+            supplier = st.text_input(
+                "Supplier Name"
+            )
 
         submitted = st.form_submit_button(
             "➕ Save Medicine",
@@ -413,20 +609,34 @@ elif page == "➕ Add Medicine":
 
             if name.strip() and supplier.strip():
 
-                add_medicine(
-                    name,
-                    category,
-                    price,
-                    quantity,
-                    str(expiry),
-                    supplier
-                )
+                try:
 
-                st.success(f"🎉 {name} added successfully!")
-                st.rerun()
+                    add_medicine(
+                        name.strip(),
+                        category,
+                        price,
+                        quantity,
+                        str(expiry),
+                        supplier.strip()
+                    )
+
+                    st.success(
+                        f"🎉 {name} added successfully!"
+                    )
+
+                    st.rerun()
+
+                except Exception as e:
+
+                    st.error(
+                        f"Unable to add medicine: {e}"
+                    )
 
             else:
-                st.error("Please enter medicine and supplier details.")
+
+                st.error(
+                    "Please enter medicine and supplier details."
+                )
 
 
 # ---------- BILLING ----------
@@ -434,49 +644,72 @@ elif page == "➕ Add Medicine":
 elif page == "🧾 Billing":
 
     st.subheader("🧾 Customer Billing")
-    st.write("Create a new pharmacy invoice.")
 
-    available = [m for m in medicines if m[4] > 0]
+    st.write(
+        "Create a new pharmacy invoice."
+    )
+
+    available = [
+        m for m in medicines if m[4] > 0
+    ]
 
     if available:
 
-        customer = st.text_input("Customer Name")
+        customer = st.text_input(
+            "Customer Name",
+            key="billing_customer"
+        )
 
         selected = st.selectbox(
             "Select Medicine",
             available,
             format_func=lambda m:
-                f"{m[1]} | ₹{m[3]:.2f} | Stock: {m[4]}"
+                f"{m[1]} | ₹{m[3]:.2f} | Stock: {m[4]}",
+            key="billing_medicine"
         )
 
         qty = st.number_input(
             "Quantity",
             min_value=1,
-            max_value=selected[4],
-            step=1
+            max_value=int(selected[4]),
+            step=1,
+            key="billing_quantity"
         )
 
-        gst_rate = st.selectbox("GST Rate (%)", [0, 5, 12, 18, 28])
+        gst_rate = st.selectbox(
+            "GST Rate (%)",
+            [0, 5, 12, 18, 28],
+            key="billing_gst"
+        )
 
-        subtotal = selected[3] * qty
+        subtotal = float(selected[3]) * int(qty)
+
         gst_amount = subtotal * gst_rate / 100
+
         total = subtotal + gst_amount
 
         st.markdown(
-            f'<div class="section-card">'
-            f'<h3>Invoice Preview</h3>'
-            f'<p>Subtotal: ₹{subtotal:.2f}</p>'
-            f'<p>GST: ₹{gst_amount:.2f}</p>'
-            f'<h2>Total: ₹{total:.2f}</h2>'
-            f'</div>',
+            f"""
+            <div class="section-card">
+                <h3>Invoice Preview</h3>
+                <p>Subtotal: ₹{subtotal:.2f}</p>
+                <p>GST ({gst_rate}%): ₹{gst_amount:.2f}</p>
+                <h2>Total: ₹{total:.2f}</h2>
+            </div>
+            """,
             unsafe_allow_html=True
         )
 
-        if st.button("🧾 Generate Invoice"):
+        if st.button(
+            "🧾 Generate Invoice",
+            key="generate_invoice"
+        ):
 
             if not customer.strip():
 
-                st.error("Enter customer name.")
+                st.error(
+                    "Please enter customer name."
+                )
 
             else:
 
@@ -491,7 +724,11 @@ elif page == "🧾 Billing":
                         SET quantity = quantity - ?
                         WHERE id = ? AND quantity >= ?
                         """,
-                        (qty, selected[0], qty)
+                        (
+                            int(qty),
+                            selected[0],
+                            int(qty)
+                        )
                     )
 
                     if cursor.rowcount == 1:
@@ -499,16 +736,24 @@ elif page == "🧾 Billing":
                         cursor.execute(
                             """
                             INSERT INTO sales
-                            (customer_name, medicine_id, medicine_name,
-                             quantity, unit_price, gst, total, sale_date)
+                            (
+                                customer_name,
+                                medicine_id,
+                                medicine_name,
+                                quantity,
+                                unit_price,
+                                gst,
+                                total,
+                                sale_date
+                            )
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                             """,
                             (
-                                customer,
+                                customer.strip(),
                                 selected[0],
                                 selected[1],
-                                qty,
-                                selected[3],
+                                int(qty),
+                                float(selected[3]),
                                 gst_amount,
                                 total,
                                 str(date.today())
@@ -517,43 +762,160 @@ elif page == "🧾 Billing":
 
                         conn.commit()
 
-                        st.success("Invoice generated successfully!")
-                        st.write(f"Customer: {customer}")
-                        st.write(f"Medicine: {selected[1]}")
-                        st.write(f"Quantity: {qty}")
-                        st.write(f"Total: ₹{total:.2f}")
+                        invoice_number = datetime.now().strftime(
+                            "%Y%m%d%H%M%S%f"
+                        )
 
-                        st.rerun()
+                        st.session_state["generated_invoice"] = {
+                            "invoice_no": invoice_number,
+                            "customer": customer.strip(),
+                            "medicine": selected[1],
+                            "quantity": int(qty),
+                            "unit_price": float(selected[3]),
+                            "subtotal": subtotal,
+                            "gst_rate": gst_rate,
+                            "gst_amount": gst_amount,
+                            "total": total,
+                            "date": str(date.today())
+                        }
+
+                        st.success(
+                            "Invoice generated successfully!"
+                        )
 
                     else:
 
                         conn.rollback()
-                        st.error("Insufficient stock.")
+
+                        st.error(
+                            "Insufficient stock. Please check inventory."
+                        )
 
                 except Exception as e:
 
                     conn.rollback()
-                    st.error(f"Unable to generate invoice: {e}")
+
+                    st.error(
+                        f"Unable to generate invoice: {e}"
+                    )
 
                 finally:
+
                     conn.close()
 
     else:
-        st.warning("Please add medicines before billing.")
+
+        st.warning(
+            "Please add medicines before billing."
+        )
+
+    # ---------- DISPLAY GENERATED INVOICE ----------
+
+    invoice = st.session_state.get(
+        "generated_invoice"
+    )
+
+    if invoice:
+
+        st.divider()
+
+        st.subheader("✅ Generated Invoice")
+
+        st.markdown(
+            """
+            <div class="section-card">
+                <h2 style="text-align:center;">
+                    MediCare Plus
+                </h2>
+                <h3 style="text-align:center;">
+                    PHARMACY INVOICE
+                </h3>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+        st.write(
+            f"**Invoice Number:** {invoice['invoice_no']}"
+        )
+
+        st.write(
+            f"**Date:** {invoice['date']}"
+        )
+
+        st.write(
+            f"**Customer:** {invoice['customer']}"
+        )
+
+        st.divider()
+
+        st.write(
+            f"**Medicine:** {invoice['medicine']}"
+        )
+
+        st.write(
+            f"**Quantity:** {invoice['quantity']}"
+        )
+
+        st.write(
+            f"**Unit Price:** ₹{invoice['unit_price']:.2f}"
+        )
+
+        st.write(
+            f"**Subtotal:** ₹{invoice['subtotal']:.2f}"
+        )
+
+        st.write(
+            f"**GST ({invoice['gst_rate']}%):** "
+            f"₹{invoice['gst_amount']:.2f}"
+        )
+
+        st.divider()
+
+        st.subheader(
+            f"Total: ₹{invoice['total']:.2f}"
+        )
+
+        st.success(
+            "Thank you for your purchase!"
+        )
+
+        # Create downloadable PDF
+
+        pdf_file = create_invoice_pdf(invoice)
+
+        st.download_button(
+            label="⬇️ Download Invoice (PDF)",
+            data=pdf_file,
+            file_name=f"Invoice_{invoice['invoice_no']}.pdf",
+            mime="application/pdf",
+            use_container_width=True,
+            key=f"download_invoice_{invoice['invoice_no']}"
+        )
 
 
 # ---------- EXPIRY ALERTS ----------
 
 elif page == "⚠️ Expiry Alerts":
 
-    st.subheader("⚠️ Medicine Expiry Management")
+    st.subheader(
+        "⚠️ Medicine Expiry Management"
+    )
 
     if medicines:
 
-        df = pd.DataFrame(medicines, columns=[
-            "ID", "Medicine", "Category", "Price",
-            "Stock", "Expiry", "Supplier"
-        ])
+        df = pd.DataFrame(
+            medicines,
+            columns=[
+                "ID",
+                "Medicine",
+                "Category",
+                "Price",
+                "Stock",
+                "Expiry",
+                "Supplier"
+            ]
+        )
 
         df["Expiry"] = pd.to_datetime(
             df["Expiry"],
@@ -562,7 +924,9 @@ elif page == "⚠️ Expiry Alerts":
 
         today = pd.Timestamp(date.today())
 
-        expired = df[df["Expiry"] < today]
+        expired = df[
+            df["Expiry"] < today
+        ]
 
         upcoming = df[
             (df["Expiry"] >= today) &
@@ -571,29 +935,52 @@ elif page == "⚠️ Expiry Alerts":
 
         a, b = st.columns(2)
 
-        a.metric("Expired Medicines", len(expired))
-        b.metric("Expiring Soon", len(upcoming))
+        a.metric(
+            "Expired Medicines",
+            len(expired)
+        )
+
+        b.metric(
+            "Expiring Soon",
+            len(upcoming)
+        )
 
         st.subheader("🚨 Expired")
-        st.dataframe(expired, use_container_width=True)
 
-        st.subheader("⏳ Expiring Within 90 Days")
-        st.dataframe(upcoming, use_container_width=True)
+        st.dataframe(
+            expired,
+            use_container_width=True
+        )
+
+        st.subheader(
+            "⏳ Expiring Within 90 Days"
+        )
+
+        st.dataframe(
+            upcoming,
+            use_container_width=True
+        )
 
     else:
-        st.info("No medicine records found.")
+
+        st.info(
+            "No medicine records found."
+        )
 
 
 # ---------- SALES REPORTS ----------
 
 elif page == "📊 Sales Reports":
 
-    st.subheader("📊 Sales Analytics")
+    st.subheader(
+        "📊 Sales Analytics"
+    )
 
     if not sales.empty:
 
         sales["sale_date"] = pd.to_datetime(
-            sales["sale_date"]
+            sales["sale_date"],
+            errors="coerce"
         )
 
         a, b, c = st.columns(3)
@@ -603,7 +990,10 @@ elif page == "📊 Sales Reports":
             f"₹{sales['total'].sum():,.2f}"
         )
 
-        b.metric("Transactions", len(sales))
+        b.metric(
+            "Transactions",
+            len(sales)
+        )
 
         c.metric(
             "Items Sold",
@@ -624,10 +1014,17 @@ elif page == "📊 Sales Reports":
             color_continuous_scale="Purples"
         )
 
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(
+            fig,
+            use_container_width=True
+        )
 
         st.subheader("Sales History")
-        st.dataframe(sales, use_container_width=True)
+
+        st.dataframe(
+            sales,
+            use_container_width=True
+        )
 
         st.download_button(
             "⬇️ Download Sales CSV",
@@ -637,10 +1034,16 @@ elif page == "📊 Sales Reports":
         )
 
     else:
-        st.info("Sales reports will appear after generating invoices.")
+
+        st.info(
+            "Sales reports will appear after generating invoices."
+        )
 
 
 # ---------- FOOTER ----------
 
 st.divider()
-st.caption("💜 MediCare Plus | Pharmacy Management System")
+
+st.caption(
+    "💜 MediCare Plus | Pharmacy Management System"
+)
