@@ -63,10 +63,7 @@ def create_invoice_pdf(invoice):
 
     pdf.setFillColorRGB(0.10, 0.16, 0.32)
     pdf.setFont("Helvetica-Bold", 17)
-    pdf.drawString(
-        50, height - 155,
-        "CUSTOMER INVOICE"
-    )
+    pdf.drawString(50, height - 155, "CUSTOMER INVOICE")
 
     y = height - 195
 
@@ -105,8 +102,7 @@ def create_invoice_pdf(invoice):
     pdf.setFont("Helvetica-Bold", 17)
 
     pdf.drawString(
-        50,
-        y,
+        50, y,
         f"TOTAL AMOUNT: Rs. {invoice['total']:.2f}"
     )
 
@@ -131,6 +127,8 @@ def create_invoice_pdf(invoice):
 st.markdown("""
 <style>
 
+/* MAIN BACKGROUND */
+
 .stApp {
     background: linear-gradient(
         135deg,
@@ -141,9 +139,13 @@ st.markdown("""
     color: #f5f7ff;
 }
 
+/* HEADER */
+
 [data-testid="stHeader"] {
     background: rgba(10, 18, 38, 0.92);
 }
+
+/* SIDEBAR */
 
 section[data-testid="stSidebar"] {
     background: linear-gradient(
@@ -155,16 +157,84 @@ section[data-testid="stSidebar"] {
 }
 
 section[data-testid="stSidebar"] * {
-    color: #f2f5ff;
+    color: #f2f5ff !important;
 }
 
-h1, h2, h3 {
+/* GENERAL TEXT */
+
+.stApp p,
+.stApp label,
+.stApp .stMarkdown,
+.stApp [data-testid="stCaptionContainer"] {
+    color: #e5eaff;
+}
+
+/* HEADINGS */
+
+.stApp h1,
+.stApp h2,
+.stApp h3,
+.stApp h4 {
     color: #f3f5ff !important;
 }
 
-p, label, .stMarkdown {
-    color: #e5eaff;
+/* INPUT FIELDS - BLACK TEXT */
+
+.stApp input,
+.stApp textarea,
+.stApp [data-baseweb="input"] input,
+.stApp [data-baseweb="textarea"] textarea {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    -webkit-text-fill-color: #000000 !important;
+    caret-color: #000000 !important;
+    border-color: #9eacc2 !important;
 }
+
+/* INPUT PLACEHOLDERS */
+
+.stApp input::placeholder,
+.stApp textarea::placeholder {
+    color: #666666 !important;
+    -webkit-text-fill-color: #666666 !important;
+    opacity: 1 !important;
+}
+
+/* DROPDOWN SELECTED TEXT */
+
+.stApp [data-baseweb="select"] > div {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+}
+
+.stApp [data-baseweb="select"] input {
+    color: #000000 !important;
+    -webkit-text-fill-color: #000000 !important;
+}
+
+/* DROPDOWN MENU */
+
+[data-baseweb="popover"],
+[data-baseweb="menu"] {
+    background-color: #ffffff !important;
+}
+
+[data-baseweb="menu"] * {
+    color: #000000 !important;
+}
+
+/* DATE PICKER */
+
+[data-baseweb="calendar"] {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+}
+
+[data-baseweb="calendar"] * {
+    color: #000000 !important;
+}
+
+/* METRIC CARDS */
 
 div[data-testid="stMetric"] {
     background: linear-gradient(
@@ -186,6 +256,8 @@ div[data-testid="stMetricValue"] {
     color: #ffffff !important;
 }
 
+/* SECTION CARDS */
+
 .section-card {
     background: linear-gradient(
         145deg,
@@ -197,6 +269,14 @@ div[data-testid="stMetricValue"] {
     border-radius: 15px;
     margin: 10px 0;
 }
+
+.section-card h2,
+.section-card h3,
+.section-card p {
+    color: #ffffff !important;
+}
+
+/* WELCOME BANNER */
 
 .welcome-banner {
     background: linear-gradient(
@@ -211,38 +291,62 @@ div[data-testid="stMetricValue"] {
 }
 
 .welcome-banner h2 {
-    color: white !important;
+    color: #ffffff !important;
     margin: 0 0 8px 0;
 }
 
 .welcome-banner p {
-    color: #eaf4ff;
+    color: #eaf4ff !important;
     margin: 0;
 }
 
+/* BUTTONS */
+
 .stButton > button,
-.stDownloadButton > button {
+.stDownloadButton > button,
+.stFormSubmitButton > button {
     background: linear-gradient(
         90deg,
         #356bc0,
         #1687b7
-    );
-    color: white;
+    ) !important;
+    color: #ffffff !important;
     border: 0;
     border-radius: 9px;
     font-weight: 600;
 }
 
+.stButton > button *,
+.stDownloadButton > button *,
+.stFormSubmitButton > button * {
+    color: #ffffff !important;
+}
+
 .stButton > button:hover,
-.stDownloadButton > button:hover {
+.stDownloadButton > button:hover,
+.stFormSubmitButton > button:hover {
     background: linear-gradient(
         90deg,
         #427bd2,
         #20a0d0
-    );
-    color: white;
-    border: 0;
+    ) !important;
+    color: #ffffff !important;
 }
+
+/* ALERTS */
+
+[data-testid="stAlert"] {
+    border-radius: 10px;
+}
+
+/* ALERT TEXT */
+
+[data-testid="stAlert"] p,
+[data-testid="stAlert"] span {
+    color: #172033 !important;
+}
+
+/* TABLES */
 
 div[data-testid="stDataFrame"],
 div[data-testid="stTable"] {
@@ -250,8 +354,35 @@ div[data-testid="stTable"] {
     border-radius: 10px;
 }
 
+/* EXPANDERS */
+
+[data-testid="stExpander"] {
+    background: #ffffff;
+    border-radius: 10px;
+}
+
+[data-testid="stExpander"] summary,
+[data-testid="stExpander"] summary * {
+    color: #172033 !important;
+}
+
+/* CHECKBOXES AND RADIO BUTTONS */
+
+.stApp [data-testid="stCheckbox"] label,
+.stApp [data-testid="stRadio"] label {
+    color: #f2f5ff !important;
+}
+
+/* DIVIDERS */
+
 hr {
     border-color: rgba(210, 225, 255, 0.28);
+}
+
+/* CAPTIONS */
+
+.stApp [data-testid="stCaptionContainer"] {
+    color: #c6d7ff !important;
 }
 
 </style>
@@ -380,7 +511,7 @@ if page == "🏠 Dashboard":
                 fig.update_layout(
                     paper_bgcolor="rgba(0,0,0,0)",
                     plot_bgcolor="rgba(0,0,0,0)",
-                    font_color="#edf3ff"
+                    font_color="#ffffff"
                 )
 
                 st.plotly_chart(
@@ -1046,7 +1177,7 @@ elif page == "📊 Sales Reports":
             fig.update_layout(
                 paper_bgcolor="rgba(0,0,0,0)",
                 plot_bgcolor="rgba(0,0,0,0)",
-                font_color="#edf3ff"
+                font_color="#ffffff"
             )
 
             st.plotly_chart(
